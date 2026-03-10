@@ -69,6 +69,7 @@ const CustomScrollbarX = styled.div`
 `;
 
 const ScrollHandleX = styled.div`
+  height: 100%;
   width: calc(100% - 12px);
   margin-left: 6px;
   background-color: rgba(78, 183, 245, 0.7);
