@@ -15,6 +15,8 @@ import {
   simpleDebounce,
 } from "./utils.ts";
 
+const DEFAULT_SCROLLBAR_SIZE = 20;
+
 const CustomScrollbar = styled.div`
   position: absolute;
   height: 100%;
@@ -642,7 +644,7 @@ export class CustomScroll extends Component<
   };
 
   getScrollStyles = () => {
-    const scrollSize = this.scrollbarYWidth || 20;
+    const scrollSize = this.scrollbarYWidth || DEFAULT_SCROLLBAR_SIZE;
     const marginKey = this.props.rtl ? "marginLeft" : "marginRight";
     const innerContainerStyle: CSSProperties = {
       height:
@@ -653,7 +655,7 @@ export class CustomScroll extends Component<
 
     // Hide native horizontal scrollbar when horizontal scroll is enabled
     if (this.props.allowHorizontalScroll) {
-      const scrollSizeX = this.scrollbarXHeight || 20;
+      const scrollSizeX = this.scrollbarXHeight || DEFAULT_SCROLLBAR_SIZE;
       innerContainerStyle.marginBottom = -1 * scrollSizeX;
       innerContainerStyle.overflowX = "scroll";
     }
@@ -668,7 +670,7 @@ export class CustomScroll extends Component<
     if (this.props.allowHorizontalScroll) {
       contentWrapperStyle.marginBottom = this.scrollbarXHeight
         ? 0
-        : this.scrollbarXHeight || 20;
+        : DEFAULT_SCROLLBAR_SIZE;
     }
 
     return {
@@ -749,6 +751,9 @@ export class CustomScroll extends Component<
     this.setState({ visible: false });
   };
 
+  getScrollbarVisibilityClass = () =>
+    this.state.visible || this.props.alwaysVisible ? "scroll-visible" : "";
+
   render() {
     const scrollStyles = this.getScrollStyles();
     const rootStyle = this.getRootStyles();
@@ -785,7 +790,7 @@ export class CustomScroll extends Component<
               <CustomScrollbar
                 data-testid="custom-scrollbar"
                 ref={this.customScrollbarRef}
-                className={`rcs-custom-scrollbar ${this.props.rtl ? "rcs-custom-scrollbar-rtl" : ""} ${(this.state.visible || this.props.alwaysVisible) ? "scroll-visible" : ""}`}
+                className={`rcs-custom-scrollbar ${this.props.rtl ? "rcs-custom-scrollbar-rtl" : ""} ${this.getScrollbarVisibilityClass()}`}
                 key="scrollbar"
               >
                 <div
@@ -806,7 +811,7 @@ export class CustomScroll extends Component<
               <CustomScrollbarX
                 data-testid="custom-scrollbar-x"
                 ref={this.customScrollbarXRef}
-                className={`rcs-custom-scrollbar-x ${(this.state.visible || this.props.alwaysVisible) ? "scroll-visible" : ""}`}
+                className={`rcs-custom-scrollbar-x ${this.getScrollbarVisibilityClass()}`}
                 key="scrollbar-x"
               >
                 <div
