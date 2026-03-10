@@ -1,11 +1,14 @@
-import { test } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import {
   assertCustomScrollBarVisible,
+  assertCustomScrollBarXVisible,
   assertDomElementProperty,
   getExamplePanel,
+  getHorizontalScrollExamplePanel,
   getInnerContainer,
   getKeepScrollVisibleExamplePanel,
   getScrollHandle,
+  getScrollHandleX,
 } from "./customScrollDriver";
 
 const APP_URL = "http://localhost:5174/";
@@ -108,3 +111,41 @@ test.describe("alwaysVisible prop", () => {
 //     await assertDomElementProperty(documentElement, "scrollTop", 200);
 //   });
 // });
+
+test.describe("horizontal scrollbar", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+  });
+
+  test("Horizontal scrollbar is visible with alwaysVisible and allowHorizontalScroll", async ({
+    page,
+  }) => {
+    const panel = getHorizontalScrollExamplePanel(page);
+    await assertCustomScrollBarXVisible(panel);
+  });
+
+  test("Horizontal scroll handle starts at left position 0", async ({
+    page,
+  }) => {
+    const panel = getHorizontalScrollExamplePanel(page);
+    await assertDomElementProperty(getScrollHandleX(panel), "offsetLeft", 0);
+  });
+
+  test("Updates the position of the horizontal scroll handle when scrolling", async ({
+    page,
+  }) => {
+    const panel = getHorizontalScrollExamplePanel(page);
+    await panel.getByTestId("outer-container").hover();
+
+    await assertDomElementProperty(getScrollHandleX(panel), "offsetLeft", 0);
+
+    // Scroll horizontally
+    await page.mouse.wheel(100, 0);
+    await sleep(500);
+
+    const innerContainer = getInnerContainer(panel);
+    const scrollLeft = await innerContainer.evaluate((node) => node.scrollLeft);
+    // scrollLeft should be > 0 after horizontal wheel event
+    expect(scrollLeft).toBeGreaterThan(0);
+  });
+});

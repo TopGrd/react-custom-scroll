@@ -1,4 +1,5 @@
-import { expect, Locator, Page } from "@playwright/test";
+import { expect } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 export const getCustomScrollbar = (container: Locator) =>
   container.getByTestId("custom-scrollbar");
@@ -24,7 +25,7 @@ export const getKeepScrollVisibleExamplePanel = (page: Page) =>
 
 export const assertDomElementProperty = async (
   element: Locator,
-  elmProperty: "scrollTop" | "offsetTop",
+  elmProperty: "scrollTop" | "offsetTop" | "scrollLeft" | "offsetLeft",
   expectedValue: number,
 ) => {
   expect(
@@ -38,3 +39,17 @@ export const assertDomElementProperty = async (
 
 export const getDocumentElement = (page: Page) =>
   page.evaluateHandle(() => document.documentElement);
+
+export const getCustomScrollbarX = (container: Locator) =>
+  container.getByTestId("custom-scrollbar-x");
+
+export const assertCustomScrollBarXVisible = async (container: Locator) => {
+  await expect(getCustomScrollbarX(container)).toBeVisible();
+  await expect(getCustomScrollbarX(container)).toHaveCSS("opacity", "1");
+};
+
+export const getScrollHandleX = (container: Locator) =>
+  container.getByTestId("custom-scroll-handle-x");
+
+export const getHorizontalScrollExamplePanel = (page: Page) =>
+  page.getByTestId("horizontal-scroll-example");

@@ -28,6 +28,11 @@ export const App = () => {
           descriptionSide="left"
           testId="keep-scroll-visible-example"
         />
+        <DemoComp
+          demoType="horizontal-scroll"
+          descriptionSide="right"
+          testId="horizontal-scroll-example"
+        />
       </div>
     </CustomScroll>
   );
