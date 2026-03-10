@@ -46,6 +46,33 @@ const ScrollHandle = styled.div`
   border-radius: 3px;
 `;
 
+const CustomScrollbarX = styled.div`
+  position: absolute;
+  width: 100%;
+  height: 6px;
+  bottom: 3px;
+  left: 0;
+  opacity: 0;
+  z-index: 1;
+  transition: opacity 0.4s ease-out;
+  padding: 0 6px;
+  box-sizing: border-box;
+  will-change: opacity;
+  pointer-events: none;
+
+  &.scroll-visible {
+    opacity: 1;
+    transition-duration: 0.2s;
+  }
+`;
+
+const ScrollHandleX = styled.div`
+  width: calc(100% - 12px);
+  margin-left: 6px;
+  background-color: rgba(78, 183, 245, 0.7);
+  border-radius: 3px;
+`;
+
 const CustomScrollRoot = styled.div`
   min-height: 0;
   min-width: 0;
@@ -100,6 +127,16 @@ const CustomScrollRoot = styled.div`
     width: 100%;
     top: 0;
   }
+
+  & .rcs-custom-scroll-handle-x {
+    position: absolute;
+    height: 100%;
+    left: 0;
+  }
+
+  &.rcs-scroll-handle-dragged ${CustomScrollbarX} {
+    opacity: 1;
+  }
 `;
 
 interface CustomScrollProps extends PropsWithChildren {
@@ -116,10 +153,15 @@ interface CustomScrollProps extends PropsWithChildren {
   keepAtBottom?: boolean;
   alwaysVisible?: boolean;
   className?: string;
+  allowHorizontalScroll?: boolean;
+  horizontalHandleClass?: string;
+  minScrollHandleWidth?: number;
+  scrollLeft?: number;
 }
 
 interface CustomScrollState {
   scrollPos: number;
+  scrollPosX: number;
   onDrag: boolean;
   visible: boolean;
 }
@@ -138,12 +180,23 @@ export class CustomScroll extends Component<
   startDragHandlePos: number = 0;
   startDragMousePos: number = 0;
 
+  // Horizontal scroll properties
+  scrollbarXHeight: number = 0;
+  contentWidth: number = 0;
+  visibleWidth: number = 0;
+  scrollHandleWidth: number = 0;
+  scrollRatioX: number = 1;
+  hasScrollX: boolean = false;
+  startDragHandlePosX: number = 0;
+  startDragMousePosX: number = 0;
+
   constructor(props: CustomScrollProps) {
     super(props);
 
     this.scrollbarYWidth = 0;
     this.state = {
       scrollPos: 0,
+      scrollPosX: 0,
       onDrag: false,
       visible: false,
     };
@@ -160,6 +213,9 @@ export class CustomScroll extends Component<
       this.updateScrollPosition(this.props.scrollTo);
     } else {
       this.forceUpdate();
+    }
+    if (typeof this.props.scrollLeft !== "undefined") {
+      this.updateScrollPositionX(this.props.scrollLeft);
     }
   }
 
@@ -181,6 +237,18 @@ export class CustomScroll extends Component<
       ? this.visibleHeight / this.contentHeight
       : 1;
 
+    // Update horizontal scroll dimensions
+    if (this.props.allowHorizontalScroll) {
+      this.contentWidth = innerContainer.scrollWidth;
+      this.scrollbarXHeight =
+        innerContainer.offsetHeight - innerContainer.clientHeight;
+      this.visibleWidth = innerContainer.clientWidth;
+      this.scrollRatioX = this.contentWidth
+        ? this.visibleWidth / this.contentWidth
+        : 1;
+      this.toggleScrollXIfNeeded();
+    }
+
     this.toggleScrollIfNeeded();
     const isExternalRender = this.state === prevState;
     if (this.props.freezePosition || prevProps.freezePosition) {
@@ -198,6 +266,13 @@ export class CustomScroll extends Component<
     ) {
       this.updateScrollPosition(this.contentHeight - this.visibleHeight);
     }
+
+    if (
+      typeof this.props.scrollLeft !== "undefined" &&
+      this.props.scrollLeft !== prevProps.scrollLeft
+    ) {
+      this.updateScrollPositionX(this.props.scrollLeft);
+    }
   }
 
   componentWillUnmount() {
@@ -206,6 +281,10 @@ export class CustomScroll extends Component<
     document.removeEventListener("mousemove", this.onHandleDrag);
     // @ts-expect-error problem typing event handlers
     document.removeEventListener("mouseup", this.onHandleDragEnd);
+    // @ts-expect-error problem typing event handlers
+    document.removeEventListener("mousemove", this.onHandleDragX);
+    // @ts-expect-error problem typing event handlers
+    document.removeEventListener("mouseup", this.onHandleDragEndX);
   }
 
   customScrollRef = createRef<HTMLDivElement>();
@@ -213,6 +292,8 @@ export class CustomScroll extends Component<
   customScrollbarRef = createRef<HTMLDivElement>();
   scrollHandleRef = createRef<HTMLDivElement>();
   contentWrapperRef = createRef<HTMLDivElement>();
+  customScrollbarXRef = createRef<HTMLDivElement>();
+  scrollHandleXRef = createRef<HTMLDivElement>();
 
   adjustFreezePosition = (prevProps: CustomScrollProps) => {
     if (!this.contentWrapperRef.current) {
@@ -238,6 +319,14 @@ export class CustomScroll extends Component<
     }
   };
 
+  toggleScrollXIfNeeded = () => {
+    const shouldHaveScrollX = this.contentWidth - this.visibleWidth > 1;
+    if (this.hasScrollX !== shouldHaveScrollX) {
+      this.hasScrollX = shouldHaveScrollX;
+      this.forceUpdate();
+    }
+  };
+
   updateScrollPosition = (scrollValue: number) => {
     const innerContainer = this.getScrolledElement();
     const updatedScrollTop = ensureWithinLimits(
@@ -251,12 +340,37 @@ export class CustomScroll extends Component<
     });
   };
 
+  updateScrollPositionX = (scrollValue: number) => {
+    const innerContainer = this.getScrolledElement();
+    const updatedScrollLeft = ensureWithinLimits(
+      scrollValue,
+      0,
+      this.contentWidth - this.visibleWidth,
+    );
+    innerContainer.scrollLeft = updatedScrollLeft;
+    this.setState({
+      scrollPosX: updatedScrollLeft,
+    });
+  };
+
   onClick = (event: MouseEvent) => {
     if (
       !this.hasScroll ||
       !this.isMouseEventOnCustomScrollbar(event) ||
       this.isMouseEventOnScrollHandle(event)
     ) {
+      // Check horizontal scrollbar click
+      if (
+        this.props.allowHorizontalScroll &&
+        this.hasScrollX &&
+        this.isMouseEventOnCustomScrollbarX(event) &&
+        !this.isMouseEventOnScrollHandleX(event)
+      ) {
+        const newScrollHandleLeft = this.calculateNewScrollHandleLeft(event);
+        const newScrollValue =
+          this.getScrollValueFromHandlePositionX(newScrollHandleLeft);
+        this.updateScrollPositionX(newScrollValue);
+      }
       return;
     }
     const newScrollHandleTop = this.calculateNewScrollHandleTop(event);
@@ -301,6 +415,28 @@ export class CustomScroll extends Component<
     return isEventPosOnDomNode(event, scrollHandle);
   };
 
+  isMouseEventOnCustomScrollbarX = (event: MouseEvent) => {
+    if (!this.customScrollbarXRef.current) {
+      return false;
+    }
+    const customScrollbarXBoundingRect =
+      this.customScrollbarXRef.current.getBoundingClientRect();
+    const customScrollbarXLayout: ElementLayout = {
+      left: customScrollbarXBoundingRect.left,
+      right: customScrollbarXBoundingRect.right,
+      top: customScrollbarXBoundingRect.top,
+      height: customScrollbarXBoundingRect.height,
+    };
+    return isEventPosOnLayout(event, customScrollbarXLayout);
+  };
+
+  isMouseEventOnScrollHandleX = (event: MouseEvent) => {
+    if (!this.scrollHandleXRef.current) {
+      return false;
+    }
+    return isEventPosOnDomNode(event, this.scrollHandleXRef.current);
+  };
+
   calculateNewScrollHandleTop = (clickEvent: MouseEvent) => {
     const domNode = this.customScrollRef.current as HTMLElement;
     const boundingRect = domNode.getBoundingClientRect();
@@ -324,6 +460,29 @@ export class CustomScroll extends Component<
     return newScrollHandleTop;
   };
 
+  calculateNewScrollHandleLeft = (clickEvent: MouseEvent) => {
+    const domNode = this.customScrollRef.current as HTMLElement;
+    const boundingRect = domNode.getBoundingClientRect();
+    const currentLeft = boundingRect.left + window.pageXOffset;
+    const clickXRelativeToScrollbar = clickEvent.pageX - currentLeft;
+    const scrollHandleLeft = this.getScrollHandleStyleX().left;
+    let newScrollHandleLeft;
+    const isRightOfHandle =
+      clickXRelativeToScrollbar > scrollHandleLeft + this.scrollHandleWidth;
+    if (isRightOfHandle) {
+      newScrollHandleLeft =
+        scrollHandleLeft +
+        Math.min(
+          this.scrollHandleWidth,
+          this.visibleWidth - this.scrollHandleWidth,
+        );
+    } else {
+      newScrollHandleLeft =
+        scrollHandleLeft - Math.max(this.scrollHandleWidth, 0);
+    }
+    return newScrollHandleLeft;
+  };
+
   getScrollValueFromHandlePosition = (handlePosition: number) =>
     handlePosition / this.scrollRatio;
 
@@ -336,9 +495,27 @@ export class CustomScroll extends Component<
     };
   };
 
+  getScrollValueFromHandlePositionX = (handlePosition: number) =>
+    handlePosition / this.scrollRatioX;
+
+  getScrollHandleStyleX = (): { width: number; left: number } => {
+    const handlePosition = this.state.scrollPosX * this.scrollRatioX;
+    this.scrollHandleWidth = this.visibleWidth * this.scrollRatioX;
+    return {
+      width: this.scrollHandleWidth,
+      left: handlePosition,
+    };
+  };
+
   adjustCustomScrollPosToContentPos = (scrollPosition: number) => {
     this.setState({
       scrollPos: scrollPosition,
+    });
+  };
+
+  adjustCustomScrollPosToContentPosX = (scrollPosition: number) => {
+    this.setState({
+      scrollPosX: scrollPosition,
     });
   };
 
@@ -348,6 +525,11 @@ export class CustomScroll extends Component<
     }
     this.hideScrollThumb();
     this.adjustCustomScrollPosToContentPos(event.currentTarget.scrollTop);
+    if (this.props.allowHorizontalScroll) {
+      this.adjustCustomScrollPosToContentPosX(
+        (event.currentTarget as HTMLElement).scrollLeft,
+      );
+    }
     if (this.props.onScroll) {
       this.props.onScroll(event);
     }
@@ -356,6 +538,28 @@ export class CustomScroll extends Component<
   getScrolledElement = () => this.innerContainerRef.current as HTMLElement;
 
   onMouseDown = (event: MouseEvent) => {
+    // Check horizontal handle first
+    if (
+      this.props.allowHorizontalScroll &&
+      this.hasScrollX &&
+      this.isMouseEventOnScrollHandleX(event)
+    ) {
+      this.startDragHandlePosX = this.getScrollHandleStyleX().left;
+      this.startDragMousePosX = event.pageX;
+      this.setState({
+        onDrag: true,
+      });
+      // @ts-expect-error problem typing event handlers
+      document.addEventListener("mousemove", this.onHandleDragX, {
+        passive: false,
+      });
+      // @ts-expect-error problem typing event handlers
+      document.addEventListener("mouseup", this.onHandleDragEndX, {
+        passive: false,
+      });
+      return;
+    }
+
     if (!this.hasScroll || !this.isMouseEventOnScrollHandle(event)) {
       return;
     }
@@ -406,6 +610,30 @@ export class CustomScroll extends Component<
     document.removeEventListener("mouseup", this.onHandleDragEnd);
   };
 
+  onHandleDragX = (event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    const mouseDeltaX = event.pageX - this.startDragMousePosX;
+    const handleLeftPosition = ensureWithinLimits(
+      this.startDragHandlePosX + mouseDeltaX,
+      0,
+      this.visibleWidth - this.scrollHandleWidth,
+    );
+    const newScrollValue =
+      this.getScrollValueFromHandlePositionX(handleLeftPosition);
+    this.updateScrollPositionX(newScrollValue);
+  };
+
+  onHandleDragEndX = (e: MouseEvent<HTMLElement>) => {
+    this.setState({
+      onDrag: false,
+    });
+    e.preventDefault();
+    // @ts-expect-error problem typing event handlers
+    document.removeEventListener("mousemove", this.onHandleDragX);
+    // @ts-expect-error problem typing event handlers
+    document.removeEventListener("mouseup", this.onHandleDragEndX);
+  };
+
   getInnerContainerClasses = () => {
     if (this.state.scrollPos && this.props.addScrolledClass) {
       return "rcs-inner-container rcs-content-scrolled";
@@ -422,12 +650,26 @@ export class CustomScroll extends Component<
       overscrollBehavior: this.props.allowOuterScroll ? "auto" : "none",
     };
     innerContainerStyle[marginKey] = -1 * scrollSize;
+
+    // Hide native horizontal scrollbar when horizontal scroll is enabled
+    if (this.props.allowHorizontalScroll) {
+      const scrollSizeX = this.scrollbarXHeight || 20;
+      innerContainerStyle.marginBottom = -1 * scrollSizeX;
+      innerContainerStyle.overflowX = "scroll";
+    }
+
     const contentWrapperStyle: CSSProperties = {
       height:
         this.props.heightRelativeToParent || this.props.flex ? "100%" : "",
       overflowY: this.props.freezePosition ? "hidden" : "visible",
     };
     contentWrapperStyle[marginKey] = this.scrollbarYWidth ? 0 : scrollSize;
+
+    if (this.props.allowHorizontalScroll) {
+      contentWrapperStyle.marginBottom = this.scrollbarXHeight
+        ? 0
+        : this.scrollbarXHeight || 20;
+    }
 
     return {
       innerContainer: innerContainerStyle,
@@ -475,6 +717,30 @@ export class CustomScroll extends Component<
     };
   };
 
+  enforceMinHandleWidth = (calculatedStyle: {
+    width: number;
+    left: number;
+  }) => {
+    const minWidth = this.props.minScrollHandleWidth || 38;
+    if (calculatedStyle.width >= minWidth) {
+      return calculatedStyle;
+    }
+
+    const diffWidthBetweenMinAndCalculated =
+      minWidth - calculatedStyle.width;
+    const scrollPositionToAvailableScrollRatio =
+      this.state.scrollPosX / (this.contentWidth - this.visibleWidth);
+    const scrollHandlePosAdjustmentForMinWidth =
+      diffWidthBetweenMinAndCalculated * scrollPositionToAvailableScrollRatio;
+    const handlePosition =
+      calculatedStyle.left - scrollHandlePosAdjustmentForMinWidth;
+
+    return {
+      width: minWidth,
+      left: handlePosition,
+    };
+  };
+
   onMouseEnter = () => {
     this.setState({ visible: true });
   };
@@ -489,6 +755,9 @@ export class CustomScroll extends Component<
     const scrollHandleStyle = this.enforceMinHandleHeight(
       this.getScrollHandleStyle(),
     );
+    const scrollHandleXStyle = this.props.allowHorizontalScroll
+      ? this.enforceMinHandleWidth(this.getScrollHandleStyleX())
+      : null;
     const className = [
       this.props.className || "",
       "rcs-custom-scroll",
@@ -530,6 +799,29 @@ export class CustomScroll extends Component<
                   />
                 </div>
               </CustomScrollbar>
+            </div>
+          ) : null}
+          {this.props.allowHorizontalScroll && this.hasScrollX ? (
+            <div className="rcs-positioning">
+              <CustomScrollbarX
+                data-testid="custom-scrollbar-x"
+                ref={this.customScrollbarXRef}
+                className={`rcs-custom-scrollbar-x ${(this.state.visible || this.props.alwaysVisible) ? "scroll-visible" : ""}`}
+                key="scrollbar-x"
+              >
+                <div
+                  data-testid="custom-scroll-handle-x"
+                  ref={this.scrollHandleXRef}
+                  className="rcs-custom-scroll-handle-x"
+                  style={scrollHandleXStyle!}
+                >
+                  <ScrollHandleX
+                    className={
+                      this.props.horizontalHandleClass || "rcs-inner-handle"
+                    }
+                  />
+                </div>
+              </CustomScrollbarX>
             </div>
           ) : null}
           <div

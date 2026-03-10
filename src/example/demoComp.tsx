@@ -12,7 +12,8 @@ interface DemoCompProps {
     | "flex"
     | "dynamic-content"
     | "allow-outer-scroll"
-    | "keep-scroll-visible";
+    | "keep-scroll-visible"
+    | "horizontal-scroll";
   descriptionSide: "left" | "right";
   testId?: string;
 }
@@ -220,6 +221,41 @@ export const DemoComp = ({
               <CustomScroll allowOuterScroll={true} alwaysVisible={true}>
                 <div className="panel-content-custom panel-content">
                   <div className="content-fill">{demoText.text}</div>
+                </div>
+              </CustomScroll>
+            </div>
+          </div>
+        </div>
+      );
+    case "horizontal-scroll":
+      return (
+        <div
+          data-testid={testId || ""}
+          className="example-wrapper"
+          style={descriptionStyle}
+          id="horizontal-scroll-example"
+        >
+          <div className="example-description">
+            With <b>allowHorizontalScroll</b>, horizontal scrollbar is
+            displayed when content overflows horizontally.
+          </div>
+          <div className="container">
+            <div className="panel">
+              <div className="panel-header">
+                <label className="panel-title">Horizontal Scroll</label>
+              </div>
+              <CustomScroll
+                allowOuterScroll={true}
+                allowHorizontalScroll={true}
+                alwaysVisible={true}
+              >
+                <div className="panel-content-custom panel-content">
+                  <div
+                    className="content-fill"
+                    style={{ width: 800, whiteSpace: "nowrap" }}
+                  >
+                    {demoText.text}
+                  </div>
                 </div>
               </CustomScroll>
             </div>
